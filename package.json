@@ -1,0 +1,24 @@
+{
+  "name": "trial",
+  "version": "1.0.0",
+  "description": "",
+  "main": "node_agent.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "chartjs": "^0.3.24",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.11",
+    "systeminformation": "^5.27.13",
+    "tailwind": "^4.0.0",
+    "ws": "^8.18.3"
+  }
+}
