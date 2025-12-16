@@ -6,6 +6,7 @@ import { GrSystem } from "react-icons/gr";
 import { MdError } from "react-icons/md";
 import { GoDotFill } from "react-icons/go";
 import Devices from "./Devices";
+// import CpuUsageChart from "./Component/CpuUsageChart.jsx";
 import DiskDonut from "./Diskdonut.jsx";
 
 /* ---------- HUMAN READABLE UPTIME ---------- */
@@ -21,7 +22,7 @@ function formatUptime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
 
-  // 🔑 helper to add leading zero
+  //helper to add leading zero
   const pad = (n) => String(n).padStart(2, "0");
 
   const parts = [];
@@ -37,7 +38,7 @@ export default function Dashboard() {
   const [pcs, setPcs] = useState([]);
   const [time, setTime] = useState("");
   const [now, setNow] = useState(() => Date.now());
-  const [ws, setWs] = useState(null);   // ✅ socket in state
+  const [ws, setWs] = useState(null);   //socket in state
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -61,7 +62,7 @@ export default function Dashboard() {
         })
       );
 
-      setWs(ws);      // ✅ set AFTER open
+      setWs(ws);      // set AFTER open
       setReady(true);
     };
 
@@ -77,14 +78,12 @@ export default function Dashboard() {
     return () => ws.close();
   }, []);
 
-
-
   return (
     <div>
       <div className="header">
         <div className="side_left">
-        <h1>IT Asset Monitoring</h1>
-        <div className="time">Current Time: {time}</div>
+          <h1>IT Asset Monitoring</h1>
+          <div className="time">Current Time: {time}</div>
         </div>
         <div className="side">
           {ready && ws && <Devices ws={ws} />}
@@ -122,18 +121,19 @@ export default function Dashboard() {
               </p>
               <p><b>OS:</b> {pc.staticInfo.os.distro} {pc.staticInfo.os.arch}</p>
 
-              <p><b>Total RAM:</b> {pc.staticInfo.memory.total}</p>
+
             </div>
 
-            {/* ---------- LIVE METRICS ---------- */}
             <div className="section">
               <h4><AiFillThunderbolt /> Live Metrics</h4>
 
               {pc.stats ? (
                 <>
+                  {/* <CpuUsageChart cpuLoad={pc?.stats?.cpu?.load} /> */}
                   <p><b>CPU Load:</b> {pc.stats.cpu.load}</p>
                   <p><b>RAM Used:</b> {pc.stats.memory.used}</p>
                   <p><b>RAM Free:</b> {pc.stats.memory.free}</p>
+                  <p><b>Total RAM:</b> {pc.staticInfo.memory.total}</p>
                   <p><b>Uptime:</b> {formatUptime(pc.stats.uptime)}</p>
 
                   <hr></hr>

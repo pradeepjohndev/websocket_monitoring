@@ -10,7 +10,7 @@ function parseGB(value) {
 const DiskDonut = ({ disk }) => {
   const used = parseGB(disk.used);
   const free = parseGB(disk.available);
-
+  
   const data = {
     labels: ["Used", "Free"],
     datasets: [
