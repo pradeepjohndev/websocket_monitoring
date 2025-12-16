@@ -1,32 +1,39 @@
 import { useEffect, useState } from "react";
+import { IoIosPeople } from "react-icons/io";
+import { FaPersonCircleCheck,FaPersonCircleXmark  } from "react-icons/fa6";
+
 
 export default function Devices({ ws }) {
-  const [dashboardCount, setDashboardCount] = useState(1);
-  const [dashboardId] = useState(() => crypto.randomUUID());
+  const [total, setTotal] = useState(0);
+  const [online, setOnline] = useState(0);
+  const [offline, setOffline] = useState(0);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080");
     if (!ws) return;
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({
-        type: "DASHBOARD_REGISTER",
-        dashboardId
-      }));
-    };
-
-    ws.onmessage = (e) => {
+    const handleMessage = (e) => {
       const data = JSON.parse(e.data);
 
-      if (data.type === "DASHBOARD_COUNT") {
-        setDashboardCount(data.count+1);
+      if (data.type === "COUNTS_UPDATE") {
+        // ✅ async event → SAFE
+        setTotal(data.payload.totalDevices);
+        setOnline(data.payload.onlineDevices);
+        setOffline(data.payload.offlineDevices);
       }
     };
-  }, [ws, dashboardId]);
-  
 
+    ws.addEventListener("message", handleMessage);
+
+    return () => {
+      ws.removeEventListener("message", handleMessage);
+    };
+  }, [ws]);
 
   return (
-    <div className="devices" style={{color:"white"}}>Devices connected: {dashboardCount}</div>
+    <div style={{ color: "white" }}>
+      <p><IoIosPeople />Total Devices: {total}</p>
+      <p><FaPersonCircleCheck /> Online: {online}</p>
+      <p><FaPersonCircleXmark /> Offline: {offline}</p>
+    </div>
   );
 }

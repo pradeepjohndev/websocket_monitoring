@@ -8,25 +8,27 @@ import { GoDotFill } from "react-icons/go";
 import Devices from "./Devices";
 import DiskDonut from "./Diskdonut.jsx";
 
-
 /* ---------- HUMAN READABLE UPTIME ---------- */
-function formatUptime(seconds) {
-  seconds = Number(seconds);
+function formatUptime(totalSeconds) {
+  totalSeconds = Number(totalSeconds);
 
-  const days = Math.floor(seconds / 86400);
-  seconds %= 86400;
+  const days = Math.floor(totalSeconds / 86400);
+  totalSeconds %= 86400;
 
-  const hours = Math.floor(seconds / 3600);
-  seconds %= 3600;
+  const hours = Math.floor(totalSeconds / 3600);
+  totalSeconds %= 3600;
 
-  const minutes = Math.floor(seconds / 60);
-  seconds = Math.floor(seconds % 60);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = Math.floor(totalSeconds % 60);
+
+  // 🔑 helper to add leading zero
+  const pad = (n) => String(n).padStart(2, "0");
 
   const parts = [];
   if (days) parts.push(`${days}d`);
-  if (hours) parts.push(`${hours}h`);
-  if (minutes) parts.push(`${minutes}m`);
-  if (seconds || parts.length === 0) parts.push(`${seconds}s`);
+  parts.push(`${pad(hours)}h`);
+  parts.push(`${pad(minutes)}m`);
+  parts.push(`${pad(seconds)}s`);
 
   return parts.join(" ");
 }
@@ -35,6 +37,8 @@ export default function Dashboard() {
   const [pcs, setPcs] = useState([]);
   const [time, setTime] = useState("");
   const [now, setNow] = useState(() => Date.now());
+  const [ws, setWs] = useState(null);   // ✅ socket in state
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -49,6 +53,18 @@ export default function Dashboard() {
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8080");
 
+    ws.onopen = () => {
+      ws.send(
+        JSON.stringify({
+          type: "DASHBOARD_REGISTER",
+          dashboardId: crypto.randomUUID()
+        })
+      );
+
+      setWs(ws);      // ✅ set AFTER open
+      setReady(true);
+    };
+
     ws.onmessage = (e) => {
       const data = JSON.parse(e.data);
       if (data.type === "DASHBOARD_UPDATE") {
@@ -57,16 +73,21 @@ export default function Dashboard() {
     };
 
     ws.onerror = () => console.error("WebSocket error");
+
     return () => ws.close();
   }, []);
+
+
 
   return (
     <div>
       <div className="header">
+        <div className="side_left">
         <h1>IT Asset Monitoring</h1>
+        <div className="time">Current Time: {time}</div>
+        </div>
         <div className="side">
-          <div className="time">Current Time: {time}</div>
-          {<Devices />}
+          {ready && ws && <Devices ws={ws} />}
         </div>
       </div>
 
@@ -84,7 +105,7 @@ export default function Dashboard() {
         return (
           <div key={pc.pcId} className={`pc ${pc.online ? "online" : "offline"}`}>
             <h3>
-              <FaComputer className="icon" />{pc.online ? <GoDotFill style={{color:"green"}}/> : <GoDotFill style={{color:"red"}}/>}{pc.pcId}
+              <FaComputer className="icon" />{pc.online ? <GoDotFill style={{ color: "green" }} /> : <GoDotFill style={{ color: "red" }} />}{pc.pcId}
             </h3>
 
             <p className="time"><b>Last Update:</b> {lastUpdate}</p>
@@ -154,7 +175,7 @@ export default function Dashboard() {
                       </tbody>
                     </table>
                   ) : (
-                  <p><MdError /> No disk data</p>
+                    <p><MdError /> No disk data</p>
                   )}
                 </>
               ) : (
