@@ -6,7 +6,6 @@ import { GrSystem } from "react-icons/gr";
 import { MdError } from "react-icons/md";
 import { GoDotFill } from "react-icons/go";
 import Devices from "./Devices";
-// import CpuUsageChart from "./Component/CpuUsageChart.jsx";
 import DiskDonut from "./Diskdonut.jsx";
 
 /* ---------- HUMAN READABLE UPTIME ---------- */
@@ -22,7 +21,6 @@ function formatUptime(totalSeconds) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = Math.floor(totalSeconds % 60);
 
-  //helper to add leading zero
   const pad = (n) => String(n).padStart(2, "0");
 
   const parts = [];
@@ -129,7 +127,6 @@ export default function Dashboard() {
 
               {pc.stats ? (
                 <>
-                  {/* <CpuUsageChart cpuLoad={pc?.stats?.cpu?.load} /> */}
                   <p><b>CPU Load:</b> {pc.stats.cpu.load}</p>
                   <p><b>RAM Used:</b> {pc.stats.memory.used}</p>
                   <p><b>RAM Free:</b> {pc.stats.memory.free}</p>
@@ -141,6 +138,8 @@ export default function Dashboard() {
                   <p><b>IP:</b> {pc.stats.network.ip || "N/A"}</p>
                   <p><b>MAC:</b> {pc.stats.network.mac || "N/A"}</p>
                   <p><b>iface: </b>{pc.stats.network.iface || "N/A"}</p>
+                  {/* <p><b>upload: </b>{pc.stats.network.upload}kb/sec</p>
+                  <p><b>download: </b>{pc.stats.network.download}kb/sec</p> */}
 
                   <hr></hr>
                   <h4><SiGooglecloudstorage /> Storage</h4>

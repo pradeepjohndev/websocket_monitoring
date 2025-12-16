@@ -1,0 +1,440 @@
+import express from "express";
+import http from "http";
+import WebSocket, { WebSocketServer } from "ws";
+
+/* ---------------- SETUP ---------------- */
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+const pcs = new Map(); // pcId -> state
+
+/* ---------------- ROUTES ---------------- */
+
+app.get("/", (req, res) => {
+  res.send("🟢 IT Asset Monitoring Server Running");
+});
+
+/* ---------------- WEBSOCKET ---------------- */
+
+wss.on("connection", (ws) => {
+  ws.isDashboard = true; // default
+
+  ws.on("message", (message) => {
+    let data;
+    try {
+      data = JSON.parse(message.toString());
+    } catch {
+      return;
+    }
+
+    /* -------- REGISTER AGENT -------- */
+    if (data.type === "REGISTER") {
+      ws.isDashboard = false;
+      ws.pcId = data.pcId;
+
+      pcs.set(data.pcId, {
+        ws,
+        pcId: data.pcId,
+        online: true,
+        lastSeen: Date.now(),
+        staticInfo: data.payload,
+        stats: null
+      });
+
+      broadcastDashboard();
+      return;
+    }
+
+    /* -------- SYSTEM STATS -------- */
+    if (data.type === "SYSTEM_STATS") {
+      const pc = pcs.get(data.pcId);
+      if (!pc) return;
+
+      pc.stats = data.payload;
+      pc.lastSeen = Date.now();
+      pc.online = true;
+
+      broadcastDashboard();
+      return;
+    }
+
+    /* -------- HEARTBEAT -------- */
+    if (data.type === "HEARTBEAT") {
+      const pc = pcs.get(data.pcId);
+      if (pc) {
+        pc.lastSeen = Date.now();
+        pc.online = true;
+      }
+    }
+  });
+
+  /* -------- DISCONNECT -------- */
+  ws.on("close", () => {
+    if (!ws.isDashboard && ws.pcId) {
+      const pc = pcs.get(ws.pcId);
+      if (pc) {
+        pc.online = false;   // ⚠️ don't delete, mark offline
+        pc.ws = null;
+        broadcastDashboard();
+      }
+    }
+  });
+});
+
+/* ---------------- OFFLINE CHECK ---------------- */
+
+setInterval(() => {
+  const now = Date.now();
+
+  pcs.forEach(pc => {
+    if (now - pc.lastSeen > 6000) {
+      pc.online = false;
+    }
+  });
+
+  broadcastDashboard();
+}, 1000);
+
+/* ---------------- BROADCAST ---------------- */
+
+function broadcastDashboard() {
+  const payload = [...pcs.values()].map(pc => ({
+    pcId: pc.pcId,
+    online: pc.online,
+    staticInfo: pc.staticInfo,
+    stats: pc.stats
+  }));
+
+  const msg = JSON.stringify({
+    type: "DASHBOARD_UPDATE",
+    payload
+  });
+
+  wss.clients.forEach(client => {
+    if (
+      client.readyState === WebSocket.OPEN &&
+      client.isDashboard
+    ) {
+      client.send(msg);
+    }
+  });
+}
+
+/* ---------------- START ---------------- */
+
+server.listen(8080, () => {
+  console.log("🟢 WebSocket server running on port 8080");
+});
+
+
+import express from "express";
+import http from "http";
+import WebSocket, { WebSocketServer } from "ws";
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+const pcs = new Map();          // pcId -> pc data
+const dashboards = new Set();  // dashboard sockets
+
+app.get("/", (_, res) => {
+  res.send("🟢 Server running");
+});
+
+/* ---------------- WEBSOCKET ---------------- */
+wss.on("connection", (ws) => {
+  ws.isDashboard = false;
+
+  ws.on("message", (msg) => {
+    let data;
+    try {
+      data = JSON.parse(msg.toString());
+    } catch {
+      return;
+    }
+
+    /* ---------- DASHBOARD ---------- */
+    if (data.type === "DASHBOARD_REGISTER") {
+      ws.isDashboard = true;
+      dashboards.add(ws);
+
+      console.log("📺 Dashboard connected");
+
+      sendCounts();
+      sendDashboardData();
+      return;
+    }
+
+    /* ---------- DEVICE REGISTER ---------- */
+    if (data.type === "REGISTER") {
+      console.log("🖥️ Device registered:", data.pcId);
+
+      pcs.set(data.pcId, {
+        pcId: data.pcId,
+        online: true,
+        lastSeen: Date.now(),
+        staticInfo: data.payload,
+        stats: null
+      });
+
+      sendCounts();
+      sendDashboardData();
+      return;
+    }
+
+    /* ---------- STATS ---------- */
+    if (data.type === "SYSTEM_STATS") {
+      const pc = pcs.get(data.pcId);
+      if (!pc) return;
+
+      pc.stats = data.payload;
+      pc.lastSeen = Date.now();
+      pc.online = true;
+
+      sendCounts();
+      sendDashboardData();
+      return;
+    }
+
+    /* ---------- HEARTBEAT ---------- */
+    if (data.type === "HEARTBEAT") {
+      const pc = pcs.get(data.pcId);
+      if (pc) {
+        pc.lastSeen = Date.now();
+        pc.online = true;
+      }
+    }
+  });
+
+  ws.on("close", () => {
+    if (ws.isDashboard) {
+      dashboards.delete(ws);
+      console.log("📺 Dashboard disconnected");
+    }
+  });
+});
+
+/* ---------------- OFFLINE CHECK ---------------- */
+setInterval(() => {
+  const now = Date.now();
+  let changed = false;
+
+  pcs.forEach(pc => {
+    if (pc.online && now - pc.lastSeen > 6000) {
+      pc.online = false;
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    sendCounts();
+    sendDashboardData();
+  }
+}, 1000);
+
+/* ---------------- SEND COUNTS ---------------- */
+function sendCounts() {
+  const totalDevices = pcs.size;
+  const onlineDevices = [...pcs.values()].filter(p => p.online).length;
+  const offlineDevices = totalDevices - onlineDevices;
+
+  console.log("📊 COUNTS:", { totalDevices, onlineDevices, offlineDevices });
+
+  const msg = JSON.stringify({
+    type: "COUNTS_UPDATE",
+    payload: {
+      totalDevices,
+      onlineDevices,
+      offlineDevices
+    }
+  });
+
+  dashboards.forEach(ws => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    }
+  });
+}
+
+/* ---------------- SEND DEVICE DATA ---------------- */
+function sendDashboardData() {
+  const payload = [...pcs.values()];
+
+  const msg = JSON.stringify({
+    type: "DASHBOARD_UPDATE",
+    payload
+  });
+
+  dashboards.forEach(ws => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    }
+  });
+}
+
+/* ---------------- START ---------------- */
+server.listen(8080, () => {
+  console.log("🟢 WebSocket server running on port 8080");
+});
+
+
+import express from "express";
+import http from "http";
+import WebSocket, { WebSocketServer } from "ws";
+
+/* ---------------- SETUP ---------------- */
+
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+const pcs = new Map(); // pcId -> state
+
+/* ---------------- ROUTES ---------------- */
+
+app.get("/", (req, res) => {
+  res.send("🟢 IT Asset Monitoring Server Running");
+});
+
+/* ---------------- WEBSOCKET ---------------- */
+
+wss.on("connection", (ws) => {
+  ws.isDashboard = true; // default
+
+  ws.on("message", (message) => {
+    let data;
+    try {
+      data = JSON.parse(message.toString());
+    } catch {
+      return;
+    }
+
+    /* -------- REGISTER AGENT -------- */
+    if (data.type === "REGISTER") {
+      ws.isDashboard = false;
+      ws.pcId = data.pcId;
+
+      pcs.set(data.pcId, {
+        ws,
+        pcId: data.pcId,
+        online: true,
+        lastSeen: Date.now(),
+        staticInfo: data.payload,
+        stats: null
+      });
+
+      broadcastDashboard();
+      return;
+    }
+
+    /* -------- SYSTEM STATS -------- */
+    if (data.type === "SYSTEM_STATS") {
+      const pc = pcs.get(data.pcId);
+      if (!pc) return;
+
+      pc.stats = data.payload;
+      pc.lastSeen = Date.now();
+      pc.online = true;
+
+      broadcastDashboard();
+      return;
+    }
+
+    /* -------- HEARTBEAT -------- */
+    if (data.type === "HEARTBEAT") {
+      const pc = pcs.get(data.pcId);
+      if (pc) {
+        pc.lastSeen = Date.now();
+        pc.online = true;
+      }
+    }
+  });
+
+  /* -------- DISCONNECT -------- */
+  ws.on("close", () => {
+    if (!ws.isDashboard && ws.pcId) {
+      const pc = pcs.get(ws.pcId);
+      if (pc) {
+        pc.online = false;   // ⚠️ don't delete, mark offline
+        pc.ws = null;
+        broadcastDashboard();
+      }
+    }
+  });
+});
+
+/* ---------------- OFFLINE CHECK ---------------- */
+
+setInterval(() => {
+  const now = Date.now();
+
+  pcs.forEach(pc => {
+    if (now - pc.lastSeen > 6000) {
+      pc.online = false;
+    }
+  });
+
+  broadcastDashboard();
+}, 1000);
+
+/* ---------------- BROADCAST ---------------- */
+
+function broadcastDashboard() {
+  const payload = [...pcs.values()].map(pc => ({
+    pcId: pc.pcId,
+    online: pc.online,
+    staticInfo: pc.staticInfo,
+    stats: pc.stats
+  }));
+
+  const msg = JSON.stringify({
+    type: "DASHBOARD_UPDATE",
+    payload
+  });
+
+  wss.clients.forEach(client => {
+    if (
+      client.readyState === WebSocket.OPEN &&
+      client.isDashboard
+    ) {
+      client.send(msg);
+    }
+  });
+}
+
+function broadcastCounts() {
+  const totalDevices = pcs.size;
+  const onlineDevices = [...pcs.values()].filter(pc => pc.online).length;
+  const offlineDevices = totalDevices - onlineDevices;
+
+  console.log("COUNTS_UPDATE:", {
+    totalDevices,
+    onlineDevices,
+    offlineDevices,
+    dashboards: dashboards.size
+  });
+
+  const msg = JSON.stringify({
+    type: "COUNTS_UPDATE",
+    payload: {
+      totalDevices,
+      onlineDevices,
+      offlineDevices,
+      dashboards: dashboards.size
+    }
+  });
+
+  dashboards.forEach(ws => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    }
+  });
+}
+
+
+server.listen(8080, () => {
+  console.log("🟢 WebSocket server running on port 8080");
+});

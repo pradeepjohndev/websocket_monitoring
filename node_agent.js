@@ -8,13 +8,20 @@ import {
   networkInterfaces,
   time,
   fsSize
+
 } from "systeminformation";
+import si from "systeminformation"
 
 /* ---------------- CONFIG ---------------- */
 
 const SERVER_URL = "ws://localhost:8080";
-const PC_ID = "PC-01"; // 🔁 Make unique per PC
+
+/* CHANGE #1: UNIQUE PC ID */
+const PC_ID = process.env.PC_ID || `PC-${Math.floor(Math.random() * 10000)}`;
+
 let socket;
+let metricsInterval;
+let heartbeatInterval;
 
 /* ---------------- HELPERS ---------------- */
 
@@ -27,24 +34,28 @@ function connect() {
   socket = new WebSocket(SERVER_URL);
 
   socket.onopen = async () => {
-    console.log("✅ Agent connected to server");
+    console.log(" Agent connected:", PC_ID);
 
-    // Send STATIC info once
+    // REGISTER (STATIC INFO)
     socket.send(JSON.stringify({
       type: "REGISTER",
       pcId: PC_ID,
       payload: await getStaticInfo()
     }));
 
-    // Start live metrics
-    startFastMetrics();
+    /*  CHANGE #2: IMMEDIATE HEARTBEAT */
+    sendHeartbeat();
 
-    // Heartbeat
-    setInterval(sendHeartbeat, 5000);
+    startFastMetrics();
+    heartbeatInterval = setInterval(sendHeartbeat, 5000);
   };
 
   socket.onclose = () => {
-    console.log("❌ Disconnected. Reconnecting...");
+    console.log(" Disconnected. Reconnecting...");
+
+    clearInterval(metricsInterval);
+    clearInterval(heartbeatInterval);
+
     setTimeout(connect, 3000);
   };
 
@@ -83,15 +94,20 @@ async function getStaticInfo() {
 /* ---------------- DYNAMIC INFO (EVERY 1s) ---------------- */
 
 function startFastMetrics() {
-  setInterval(async () => {
+  metricsInterval = setInterval(async () => {
     if (socket.readyState !== WebSocket.OPEN) return;
 
     try {
       const load = await currentLoad();
       const memory = await mem();
-      const net = await networkInterfaces();
       const uptime = await time();
       const disks = await fsSize();
+      const nets = await networkInterfaces();
+      const stats = await si.networkStats(); // all interfaces
+      // const netSpeed = stats[0];
+      // const downloadKB = (netSpeed.rx_sec / 1024).toFixed(2);
+      // const uploadKB = (netSpeed.rx_sec / 1024).toFixed(2);
+      const net = nets.find(n => !n.internal && n.ip4);
 
       socket.send(JSON.stringify({
         type: "SYSTEM_STATS",
@@ -99,20 +115,19 @@ function startFastMetrics() {
         payload: {
           timestamp: Date.now(),
           uptime: uptime.uptime,
-
-          cpu: {
-            load: load.currentLoad.toFixed(2) + " %"
-          },
-
+          cpu: { load: load.currentLoad.toFixed(2) + " %" },
           memory: {
             used: gb(memory.used),
-            free: gb(memory.free)
+            free: gb(memory.free),
+            total: gb(memory.total)
           },
-
           network: {
-            ip: net.find(n => !n.internal)?.ip4 || "N/A"
+            ip: net?.ip4 || "N/A",
+            mac: net?.mac || "N/A",
+            iface: net?.iface || "N/A",
+            // Upload: uploadKB,
+            // download: downloadKB,
           },
-
           disks: disks.map(d => ({
             mount: d.mount,
             type: d.type || "Unknown",

@@ -1,196 +1,204 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>IT Asset Monitoring Dashboard</title>
+<head>
+  <meta charset="UTF-8" />
+  <title>IT Asset Monitoring Dashboard</title>
 
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        padding: 20px;
-        background: #f4f4f4;
-      }
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+    }
 
-      .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
 
-      .pc {
-        border: 1px solid #ccc;
-        padding: 15px;
-        margin-bottom: 12px;
-        background: white;
-        border-radius: 6px;
-      }
+    .pc {
+      border: 1px solid #ccc;
+      padding: 16px;
+      margin-bottom: 14px;
+      background: white;
+      border-radius: 6px;
+    }
 
-      .online {
-        background: #e7f9e7;
-      }
-      .offline {
-        background: #ffecec;
-      }
+    .online { background: #e7f9e7; }
+    .offline { background: #ffecec; }
 
-      .section {
-        margin-top: 10px;
-        padding-top: 8px;
-        border-top: 1px dashed #ccc;
-      }
+    .section {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed #ccc;
+    }
 
-      .time {
-        font-size: 13px;
-        color: #444;
-      }
+    .time {
+      font-size: 13px;
+      color: #444;
+    }
 
-      .disk {
-        margin-left: 15px;
-        font-size: 14px;
-      }
+    .disk-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 14px;
+    }
 
-      .disk-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 8px;
-        font-size: 14px;
-      }
+    .disk-table th,
+    .disk-table td {
+      border: 1px solid #ddd;
+      padding: 6px 10px;
+    }
 
-      .disk-table th,
-      .disk-table td {
-        border: 1px solid #ddd;
-        padding: 6px 10px;
-        text-align: left;
-      }
+    .disk-table th {
+      background: #f4f6f8;
+      font-weight: 600;
+    }
 
-      .disk-table th {
-        background-color: #f4f6f8;
-        font-weight: 600;
-      }
+    .disk-table tr:nth-child(even) {
+      background: #fafafa;
+    }
+  </style>
+</head>
 
-      .disk-table tr:nth-child(even) {
-        background-color: #fafafa;
-      }
-    </style>
-  </head>
+<body>
 
-  <body>
-    <div class="header">
-      <h1>IT Asset Monitoring (REAL-TIME)</h1>
-      <div id="clock" class="time"></div>
-    </div>
+<div class="header">
+  <h1>IT Asset Monitoring (REAL-TIME)</h1>
+  <div id="clock" class="time"></div>
+</div>
 
-    <div id="pcs">Connecting...</div>
+<div id="pcs">Connecting...</div>
 
-    <script>
-      const pcsDiv = document.getElementById("pcs");
-      const clockDiv = document.getElementById("clock");
+<script>
+const pcsDiv = document.getElementById("pcs");
+const clockDiv = document.getElementById("clock");
 
-      /* -------- CLOCK -------- */
-      setInterval(() => {
-        clockDiv.innerText = "Current Time: " + new Date().toLocaleTimeString();
-      }, 1000);
+/* ---------- CLOCK ---------- */
+setInterval(() => {
+  clockDiv.innerText = "Current Time: " + new Date().toLocaleTimeString();
+}, 1000);
 
-      /* -------- WEBSOCKET -------- */
-      const ws = new WebSocket("ws://localhost:8080");
+/* ---------- WEBSOCKET ---------- */
+const ws = new WebSocket("ws://localhost:8080");
 
-      ws.onmessage = (e) => {
-        const data = JSON.parse(e.data);
-        if (data.type === "DASHBOARD_UPDATE") {
-          render(data.payload);
-        }
-      };
+ws.onmessage = e => {
+  const data = JSON.parse(e.data);
+  if (data.type === "DASHBOARD_UPDATE") {
+    render(data.payload);
+  }
+};
 
-      /* -------- RENDER -------- */
-      function render(pcs) {
-        pcsDiv.innerHTML = "";
 
-        pcs.forEach((pc) => {
-          const div = document.createElement("div");
-          div.className = `pc ${pc.online ? "online" : "offline"}`;
+function formatUptime(seconds) {
+  seconds = Number(seconds);
 
-          let lastUpdate = "N/A";
-          let latency = "N/A";
+  const days = Math.floor(seconds / 86400);
+  seconds %= 86400;
 
-          if (pc.stats?.timestamp) {
-            lastUpdate = new Date(pc.stats.timestamp).toLocaleTimeString();
-            latency = Date.now() - pc.stats.timestamp + " ms";
-          }
+  const hours = Math.floor(seconds / 3600);
+  seconds %= 3600;
 
-          /* ---- DISKS ---- */
-          let diskHTML = "<p>No disk data</p>";
+  const minutes = Math.floor(seconds / 60);
+  seconds = Math.floor(seconds % 60);
 
-          if (pc.stats?.disks?.length) {
-            diskHTML = `
-    <table class="disk-table">
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Mount</th>
-          <th>Total Size</th>
-          <th>Used</th>
-          <th>Free</th>
-          <th>Usage %</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${pc.stats.disks
-          .map(
-            (d) => `
-          <tr>
-            <td>${d.type}</td>
-            <td>${d.mount}</td>
-            <td>${d.size}</td>
-            <td>${d.used}</td>
-            <td>${d.available}</td>
-            <td>${d.usage}</td>
-          </tr>
-        `
-          )
-          .join("")}
-      </tbody>
-    </table>
-  `;
-          }
+  let result = [];
+  if (days) result.push(`${days}d`);
+  if (hours) result.push(`${hours}h`);
+  if (minutes) result.push(`${minutes}m`);
+  if (seconds || result.length === 0) result.push(`${seconds}s`);
 
-          div.innerHTML = `
+  return result.join(" ");
+}
+
+/* ---------- RENDER ---------- */
+function render(pcs) {
+  pcsDiv.innerHTML = "";
+
+  pcs.forEach(pc => {
+    const div = document.createElement("div");
+    div.className = `pc ${pc.online ? "online" : "offline"}`;
+
+    let lastUpdate = "N/A";
+    let latency = "N/A";
+
+    if (pc.stats?.timestamp) {
+      lastUpdate = new Date(pc.stats.timestamp).toLocaleTimeString();
+      latency = (Date.now() - pc.stats.timestamp) + " ms";
+    }
+
+    /* ---- DISK TABLE ---- */
+    let diskHTML = "<p>No disk data</p>";
+
+    if (pc.stats?.disks?.length) {
+      diskHTML = `
+        <table class="disk-table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Mount</th>
+              <th>Total</th>
+              <th>Used</th>
+              <th>Free</th>
+              <th>Usage</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pc.stats.disks.map(d => `
+              <tr>
+                <td>${d.type}</td>
+                <td>${d.mount}</td>
+                <td>${d.size}</td>
+                <td>${d.used}</td>
+                <td>${d.available}</td>
+                <td>${d.usage}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    div.innerHTML = `
       <h3>${pc.pcId} — ${pc.online ? "🟢 ONLINE" : "🔴 OFFLINE"}</h3>
 
       <p class="time"><b>Last Update:</b> ${lastUpdate}</p>
       <p class="time"><b>Latency:</b> ${latency}</p>
 
       <div class="section">
-        <h4>📌 Static Information</h4>
-        <p><b>System:</b> ${pc.staticInfo.system.manufacturer} ${
-            pc.staticInfo.system.model
-          }</p>
-        <p><b>CPU:</b> ${pc.staticInfo.cpu.brand} (${
-            pc.staticInfo.cpu.cores
-          } cores)</p>
+        <h4> Static Information</h4>
+        <p><b>Manufacturer:</b> ${pc.staticInfo.system.manufacturer}</p>
+        <p><b>Model:</b> ${pc.staticInfo.system.model}</p>
+        <p><b>CPU:</b> ${pc.staticInfo.cpu.brand} (${pc.staticInfo.cpu.cores} cores)</p>
         <p><b>OS:</b> ${pc.staticInfo.os.distro}</p>
         <p><b>Total RAM:</b> ${pc.staticInfo.memory.total}</p>
       </div>
 
       <div class="section">
-        <h4>⚡ Live Metrics</h4>
-        ${
-          pc.stats
-            ? `
+        <h4> Live Metrics</h4>
+        ${pc.stats ? `
           <p><b>CPU Load:</b> ${pc.stats.cpu.load}</p>
           <p><b>RAM Used:</b> ${pc.stats.memory.used}</p>
           <p><b>RAM Free:</b> ${pc.stats.memory.free}</p>
-          <p><b>IP Address:</b> ${pc.stats.network.ip}</p>
+          <p><b>Uptime:</b> ${formatUptime(pc.stats.uptime)}</p>
+
+          <h4> Network</h4>
+          <p><b>IP Address:</b> ${pc.stats.network.ip || "N/A"}</p>
+          <p><b>MAC Address:</b> ${pc.stats.network.mac || "N/A"}</p>
 
           <h4> Storage</h4>
           ${diskHTML}
-        `
-            : "<p>No live data yet</p>"
-        }
+        ` : "<p>No live data yet</p>"}
       </div>
     `;
 
-          pcsDiv.appendChild(div);
-        });
-      }
-    </script>
-  </body>
+    pcsDiv.appendChild(div);
+  });
+}
+</script>
+
+</body>
 </html>

@@ -2,40 +2,46 @@ import express from "express";
 import http from "http";
 import WebSocket, { WebSocketServer } from "ws";
 
-/* ---------------- SETUP ---------------- */
-
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-const pcs = new Map(); // pcId -> state
+const pcs = new Map();          // pcId -> pc data
+const dashboards = new Set();  // dashboard sockets
 
-/* ---------------- ROUTES ---------------- */
-
-app.get("/", (req, res) => {
-  res.send("🟢 IT Asset Monitoring Server Running");
+app.get("/", (_, res) => {
+  res.send(" Server running");
 });
 
 /* ---------------- WEBSOCKET ---------------- */
-
 wss.on("connection", (ws) => {
-  ws.isDashboard = true; // default
+  ws.isDashboard = false;
 
-  ws.on("message", (message) => {
+  ws.on("message", (msg) => {
     let data;
     try {
-      data = JSON.parse(message.toString());
+      data = JSON.parse(msg.toString());
     } catch {
       return;
     }
 
-    /* -------- REGISTER AGENT -------- */
+    /* ---------- DASHBOARD ---------- */
+    if (data.type === "DASHBOARD_REGISTER") {
+      ws.isDashboard = true;
+      dashboards.add(ws);
+
+      console.log(" Dashboard connected");
+
+      sendCounts();
+      sendDashboardData();
+      return;
+    }
+
+    /* --- DEVICE REGISTER ---- */
     if (data.type === "REGISTER") {
-      ws.isDashboard = false;
-      ws.pcId = data.pcId;
+      console.log(" Device registered:", data.pcId);
 
       pcs.set(data.pcId, {
-        ws,
         pcId: data.pcId,
         online: true,
         lastSeen: Date.now(),
@@ -43,11 +49,12 @@ wss.on("connection", (ws) => {
         stats: null
       });
 
-      broadcastDashboard();
+      sendCounts();
+      sendDashboardData();
       return;
     }
 
-    /* -------- SYSTEM STATS -------- */
+    /* ---------- STATS ---------- */
     if (data.type === "SYSTEM_STATS") {
       const pc = pcs.get(data.pcId);
       if (!pc) return;
@@ -56,11 +63,12 @@ wss.on("connection", (ws) => {
       pc.lastSeen = Date.now();
       pc.online = true;
 
-      broadcastDashboard();
+      sendCounts();
+      sendDashboardData();
       return;
     }
 
-    /* -------- HEARTBEAT -------- */
+    /* ---------- HEARTBEAT ---------- */
     if (data.type === "HEARTBEAT") {
       const pc = pcs.get(data.pcId);
       if (pc) {
@@ -70,60 +78,71 @@ wss.on("connection", (ws) => {
     }
   });
 
-  /* -------- DISCONNECT -------- */
   ws.on("close", () => {
-    if (!ws.isDashboard && ws.pcId) {
-      const pc = pcs.get(ws.pcId);
-      if (pc) {
-        pc.online = false;   // ⚠️ don't delete, mark offline
-        pc.ws = null;
-        broadcastDashboard();
-      }
+    if (ws.isDashboard) {
+      dashboards.delete(ws);
+      console.log("Dashboard disconnected");
     }
   });
 });
 
 /* ---------------- OFFLINE CHECK ---------------- */
-
 setInterval(() => {
   const now = Date.now();
+  let changed = false;
 
   pcs.forEach(pc => {
-    if (now - pc.lastSeen > 6000) {
+    if (pc.online && now - pc.lastSeen > 6000) {
       pc.online = false;
+      changed = true;
     }
   });
 
-  broadcastDashboard();
-}, 1000);
+  if (changed) {
+    sendCounts();
+    sendDashboardData();
+  }
+}, 5000);
 
-/* ---------------- BROADCAST ---------------- */
+/* ---------------- SEND COUNTS ---------------- */
+function sendCounts() {
+  const totalDevices = pcs.size;
+  const onlineDevices = [...pcs.values()].filter(p => p.online).length;
+  const offlineDevices = totalDevices - onlineDevices;
 
-function broadcastDashboard() {
-  const payload = [...pcs.values()].map(pc => ({
-    pcId: pc.pcId,
-    online: pc.online,
-    staticInfo: pc.staticInfo,
-    stats: pc.stats
-  }));
+  const msg = JSON.stringify({
+    type: "COUNTS_UPDATE",
+    payload: {
+      totalDevices,
+      onlineDevices,
+      offlineDevices
+    }
+  });
+
+  dashboards.forEach(ws => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
+    }
+  });
+}
+
+/* ---------------- SEND DEVICE DATA ---------------- */
+function sendDashboardData() {
+  const payload = [...pcs.values()];
 
   const msg = JSON.stringify({
     type: "DASHBOARD_UPDATE",
     payload
   });
 
-  wss.clients.forEach(client => {
-    if (
-      client.readyState === WebSocket.OPEN &&
-      client.isDashboard
-    ) {
-      client.send(msg);
+  dashboards.forEach(ws => {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(msg);
     }
   });
 }
 
 /* ---------------- START ---------------- */
-
 server.listen(8080, () => {
-  console.log("🟢 WebSocket server running on port 8080");
+  console.log(" WebSocket server running on port 8080");
 });
