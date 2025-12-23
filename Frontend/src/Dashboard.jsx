@@ -11,6 +11,7 @@ import DiskDonut from "./Diskdonut.jsx";
 import Netlog from "./Component/Netlog.jsx";
 import Cpuload from "./Component/Cpuload.jsx";
 import RAMStackedBar from "./Component/RAMStackedBar.jsx"
+import { Collapse } from "react-collapse";
 
 /* ---------- HUMAN READABLE UPTIME ---------- */
 function formatUptime(totalSeconds) {
@@ -84,6 +85,8 @@ export default function Dashboard() {
     return () => ws.close();
   }, []);
 
+  const [Open, setOpen] = useState(false);
+  const [Expand,setExpand] = useState(false);
 
   return (
     <div>
@@ -118,7 +121,7 @@ export default function Dashboard() {
         } */
 
         return (
-          <div /* style={themeStyles} */ key={pc.pcId} className={`pc ${pc.online ? "online" : "offline"}`}>
+          <div /* style={themeStyles} */ key={pc.pcId} className={`pc ${pc.online ? "online" : "offline"}`} onClick={() => { setOpen(!Open) }}>
             <h3>
               <FaComputer className="icon" />{pc.online ? <GoDotFill style={{ color: "green" }} /> : <GoDotFill style={{ color: "red" }} />}{pc.pcId}
             </h3>
@@ -128,22 +131,23 @@ export default function Dashboard() {
             <p><b>Uptime:</b> {formatUptime(pc.stats.uptime)}</p>
 
             {/* ---------- STATIC INFO ---------- */}
-            <div className="section">
+            <div className="section" style={{ cursor: "pointer" }}>
               <h4><GrSystem /> Static Information</h4>
-              <p><b>Manufacturer:</b> {pc.staticInfo.system.manufacturer}</p>
-              <p><b>Model:</b> {pc.staticInfo.system.model}</p>
-              <p>
-                <b>CPU:</b> {pc.staticInfo.cpu.brand} (
-                {pc.staticInfo.cpu.cores} cores)
-              </p>
-              <p><b>OS:</b> {pc.staticInfo.os.distro} {pc.staticInfo.os.arch}</p>
-
-
+              <Collapse isOpened={Open} theme={{ collapse: "react-collapse", content: "react-collapse-content" }}>
+                <p><b>Manufacturer:</b> {pc.staticInfo.system.manufacturer}</p>
+                <p><b>Model:</b> {pc.staticInfo.system.model}</p>
+                <p>
+                  <b>CPU:</b> {pc.staticInfo.cpu.brand} (
+                  {pc.staticInfo.cpu.cores} cores)
+                </p>
+                <p><b>OS:</b> {pc.staticInfo.os.distro} {pc.staticInfo.os.arch}</p>
+              </Collapse>
             </div>
 
-            <div className="section">
-              <h4><AiFillThunderbolt /> Live Metrics</h4>
 
+            <div className="section" style={{ cursor: "pointer" }} onClick={() => { setExpand(!Expand) }}>
+              <h4><AiFillThunderbolt /> Live Metrics</h4>
+              <Collapse isOpened={Expand} theme={{ collapse: "react-collapse", content: "react-collapse-content" }}>
               {pc.stats ? (
                 <>
                   <RAMStackedBar
@@ -226,6 +230,7 @@ export default function Dashboard() {
               ) : (
                 <p><MdError /> No live data yet</p>
               )}
+              </Collapse>
             </div>
           </div>
         );

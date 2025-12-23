@@ -85,3 +85,10 @@ body {
   align-items: center;
 }
 
+.react-collapse {
+  transition: height 300ms ease;
+}
+
+.react-collapse-content {
+  overflow: hidden;
+}
