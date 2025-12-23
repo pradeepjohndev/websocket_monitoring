@@ -12,6 +12,11 @@ async function logNetworkSpeed() {
     console.log("📡 Network Speed (per second)");
     console.log(`⬇️ Download: ${downloadKB} KB/s`);
     console.log(`⬆️ Upload  : ${uploadKB} KB/s`);
+    console.log(
+      pc.stats.memory.used,
+      pc.stats.memory.free,
+      pc.staticInfo.memory.total
+    );
   } catch (err) {
     console.error("Error fetching network stats:", err);
   }

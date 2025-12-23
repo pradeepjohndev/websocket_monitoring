@@ -55,7 +55,6 @@ export default function CpuUsageChart({ cpuLoad }) {
                             borderColor: "#4f46e5",
                             backgroundColor: "rgba(79,70,229,0.2)",
 
-                            // 🔥 KEY FIXES
                             borderWidth: 3,
                             pointRadius: 5,
                             pointHoverRadius: 7,

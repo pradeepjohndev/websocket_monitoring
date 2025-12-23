@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { FaComputer, FaWifi } from "react-icons/fa6";
+import { FaArrowDown, FaComputer, FaWifi } from "react-icons/fa6";
 import { SiGooglecloudstorage } from "react-icons/si";
 import { AiFillThunderbolt } from "react-icons/ai";
 import { GrSystem } from "react-icons/gr";
 import { MdError } from "react-icons/md";
 import { GoDotFill } from "react-icons/go";
+import { FaArrowUp } from "react-icons/fa";
 import Devices from "./Devices";
 import DiskDonut from "./Diskdonut.jsx";
+import Netlog from "./Component/Netlog.jsx";
+import Cpuload from "./Component/Cpuload.jsx";
+import RAMStackedBar from "./Component/RAMStackedBar.jsx"
 
 /* ---------- HUMAN READABLE UPTIME ---------- */
 function formatUptime(totalSeconds) {
@@ -32,12 +36,16 @@ function formatUptime(totalSeconds) {
   return parts.join(" ");
 }
 
+const gb = bytes => (bytes / 1024 ** 3).toFixed(2) + " GB";
+
+
 export default function Dashboard() {
   const [pcs, setPcs] = useState([]);
   const [time, setTime] = useState("");
   const [now, setNow] = useState(() => Date.now());
-  const [ws, setWs] = useState(null);   //socket in state
+  const [ws, setWs] = useState(null);
   const [ready, setReady] = useState(false);
+  // const [dark, setDark] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -60,7 +68,7 @@ export default function Dashboard() {
         })
       );
 
-      setWs(ws);      // set AFTER open
+      setWs(ws);
       setReady(true);
     };
 
@@ -76,6 +84,7 @@ export default function Dashboard() {
     return () => ws.close();
   }, []);
 
+
   return (
     <div>
       <div className="header">
@@ -85,6 +94,7 @@ export default function Dashboard() {
         </div>
         <div className="side">
           {ready && ws && <Devices ws={ws} />}
+          {/* <button onClick={() => setDark(!dark)}>Toggle Theme</button> */}
         </div>
       </div>
 
@@ -99,14 +109,23 @@ export default function Dashboard() {
           ? `${now - pc.stats.timestamp} ms`
           : "N/A";
 
+        const cpuColor =
+          pc.stats.cpu.load > 80 ? "#dc2626" : pc.stats.cpu.load > 50 ? "#f59e0b" : "#22c55e";
+
+        /* const themeStyles = {
+          backgroundColor: dark ? "black" : "white",
+          color: dark ? "white" : "black"
+        } */
+
         return (
-          <div key={pc.pcId} className={`pc ${pc.online ? "online" : "offline"}`}>
+          <div /* style={themeStyles} */ key={pc.pcId} className={`pc ${pc.online ? "online" : "offline"}`}>
             <h3>
               <FaComputer className="icon" />{pc.online ? <GoDotFill style={{ color: "green" }} /> : <GoDotFill style={{ color: "red" }} />}{pc.pcId}
             </h3>
 
             <p className="time"><b>Last Update:</b> {lastUpdate}</p>
             <p className="time"><b>Latency:</b> {latency}</p>
+            <p><b>Uptime:</b> {formatUptime(pc.stats.uptime)}</p>
 
             {/* ---------- STATIC INFO ---------- */}
             <div className="section">
@@ -127,29 +146,56 @@ export default function Dashboard() {
 
               {pc.stats ? (
                 <>
-                  <p><b>CPU Load:</b> {pc.stats.cpu.load}</p>
-                  <p><b>RAM Used:</b> {pc.stats.memory.used}</p>
-                  <p><b>RAM Free:</b> {pc.stats.memory.free}</p>
-                  <p><b>Total RAM:</b> {pc.staticInfo.memory.total}</p>
-                  <p><b>Uptime:</b> {formatUptime(pc.stats.uptime)}</p>
+                  <RAMStackedBar
+                    used={pc.stats.memory.used}
+                    free={pc.stats.memory.free}
+                    total={pc.staticInfo.memory.total}
+                  />
+                  <div className="Ram_info">
+                    <p><b>RAM Used:</b> {gb(pc.stats.memory.used)}</p>
+                    <p><b>RAM Free:</b> {gb(pc.stats.memory.free)}</p>
+                    <p><b>Total RAM:</b> {pc.staticInfo.memory.total}</p>
+                  </div>
+
+                  <Cpuload
+                    label="CPU Load"
+                    value={pc.stats.cpu.load}
+                    color={cpuColor}
+                  />
+                  <p className="Ram_info"><b>CPU Load: {pc.stats.cpu.load} %</b></p>
 
                   <hr></hr>
                   <h4><FaWifi /> Network</h4>
                   <p><b>IP:</b> {pc.stats.network.ip || "N/A"}</p>
                   <p><b>MAC:</b> {pc.stats.network.mac || "N/A"}</p>
                   <p><b>iface: </b>{pc.stats.network.iface || "N/A"}</p>
-                  {/* <p><b>upload: </b>{pc.stats.network.upload}kb/sec</p>
+
+                  <p><b>Network check: </b></p>
+                  <p>Evaluate your network speed and check for network issues to ensure your pc can smoothly access the internet</p>
+                  <div className="Network_stats">
+                    <div className="network_left" style={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
+                      <p>Upload: {pc.stats.network.Upload}<FaArrowUp style={{ color: "red" }} /> Kb/sec </p>
+                      <p>Download:{pc.stats.network.download} <FaArrowDown style={{ color: "blue" }} />Kb/sec</p>
+
+                    </div>
+                    <div className="network_right">
+                      <Netlog
+                        upload={pc.stats.network.Upload}
+                        download={pc.stats.network.download}
+                      /></div>
+                  </div>
+                  {/* <p><b>upload: </b>{pc.stats.network.Upload}kb/sec</p>
                   <p><b>download: </b>{pc.stats.network.download}kb/sec</p> */}
 
                   <hr></hr>
                   <h4><SiGooglecloudstorage /> Storage</h4>
                   {pc.stats.disks?.length ? (
-                    /* < div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", justifyContent: "space-evenly", flexWrap: "wrap" }}>
                       {pc.stats.disks.map((disk, i) => (
                         <DiskDonut key={i} disk={disk} />
                       ))}
-                    </div> */
-                    <table className="disk-table">
+                    </div>
+                    /* <table className="disk-table">
                       <thead>
                         <tr>
                           <th>Type</th>
@@ -172,7 +218,7 @@ export default function Dashboard() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table> */
                   ) : (
                     <p><MdError /> No disk data</p>
                   )}

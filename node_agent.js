@@ -1,34 +1,17 @@
 import WebSocket from "ws";
-import {
-  system,
-  cpu,
-  osInfo,
-  mem,
-  currentLoad,
-  networkInterfaces,
-  time,
-  fsSize
-
-} from "systeminformation";
+import { system, cpu, osInfo, mem, currentLoad, networkInterfaces, time, fsSize } from "systeminformation";
 import si from "systeminformation"
-
-/* ---------------- CONFIG ---------------- */
 
 const SERVER_URL = "ws://localhost:8080";
 
-/* CHANGE #1: UNIQUE PC ID */
 const PC_ID = process.env.PC_ID || `PC-${Math.floor(Math.random() * 10000)}`;
 
 let socket;
 let metricsInterval;
 let heartbeatInterval;
 
-/* ---------------- HELPERS ---------------- */
-
 const gb = bytes => (bytes / 1024 ** 3).toFixed(2) + " GB";
 const percent = v => v.toFixed(1) + " %";
-
-/* ---------------- CONNECT ---------------- */
 
 function connect() {
   socket = new WebSocket(SERVER_URL);
@@ -36,7 +19,6 @@ function connect() {
   socket.onopen = async () => {
     console.log(" Agent connected:", PC_ID);
 
-    // REGISTER (STATIC INFO)
     socket.send(JSON.stringify({
       type: "REGISTER",
       pcId: PC_ID,
@@ -103,11 +85,12 @@ function startFastMetrics() {
       const uptime = await time();
       const disks = await fsSize();
       const nets = await networkInterfaces();
-      const stats = await si.networkStats(); // all interfaces
-      // const netSpeed = stats[0];
-      // const downloadKB = (netSpeed.rx_sec / 1024).toFixed(2);
-      // const uploadKB = (netSpeed.rx_sec / 1024).toFixed(2);
+      const stats = await si.networkStats();
+      const netlog = stats[0];
+      const downloadKB = (netlog.rx_sec / 1024).toFixed(2);
+      const uploadKB = (netlog.tx_sec / 1024).toFixed(2);
       const net = nets.find(n => !n.internal && n.ip4);
+
 
       socket.send(JSON.stringify({
         type: "SYSTEM_STATS",
@@ -115,18 +98,22 @@ function startFastMetrics() {
         payload: {
           timestamp: Date.now(),
           uptime: uptime.uptime,
-          cpu: { load: load.currentLoad.toFixed(2) + " %" },
+          // cpu: { load: load.currentLoad.toFixed(2) + " %" },
+          cpu: { load: Number(load.currentLoad.toFixed(2)) },
           memory: {
-            used: gb(memory.used),
-            free: gb(memory.free),
-            total: gb(memory.total)
+            // used: gb(memory.used),
+            // free: gb(memory.free),
+            // total: gb(memory.total)
+            used: memory.used,
+            free: memory.free,
+            total: memory.total
           },
           network: {
             ip: net?.ip4 || "N/A",
             mac: net?.mac || "N/A",
             iface: net?.iface || "N/A",
-            // Upload: uploadKB,
-            // download: downloadKB,
+            Upload: uploadKB,
+            download: downloadKB,
           },
           disks: disks.map(d => ({
             mount: d.mount,
@@ -158,3 +145,4 @@ function sendHeartbeat() {
 /* ---------------- START ---------------- */
 
 connect();
+

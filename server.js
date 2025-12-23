@@ -6,14 +6,13 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
-const pcs = new Map();          // pcId -> pc data
-const dashboards = new Set();  // dashboard sockets
+const pcs = new Map();        
+const dashboards = new Set(); 
 
 app.get("/", (_, res) => {
   res.send(" Server running");
 });
 
-/* ---------------- WEBSOCKET ---------------- */
 wss.on("connection", (ws) => {
   ws.isDashboard = false;
 
