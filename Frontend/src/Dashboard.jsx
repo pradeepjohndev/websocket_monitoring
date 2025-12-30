@@ -13,7 +13,6 @@ import Cpuload from "./Component/Cpuload.jsx";
 import RAMStackedBar from "./Component/RAMStackedBar.jsx"
 import { Collapse } from "react-collapse";
 
-/* ---------- HUMAN READABLE UPTIME ---------- */
 function formatUptime(totalSeconds) {
   totalSeconds = Number(totalSeconds);
 
@@ -39,7 +38,6 @@ function formatUptime(totalSeconds) {
 
 const gb = bytes => (bytes / 1024 ** 3).toFixed(2) + " GB";
 
-
 export default function Dashboard() {
   const [pcs, setPcs] = useState([]);
   const [time, setTime] = useState("");
@@ -57,7 +55,7 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  /* ---------- WEBSOCKET ---------- */
+  //websocket
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:8080");
 
@@ -86,7 +84,7 @@ export default function Dashboard() {
   }, []);
 
   const [Open, setOpen] = useState(false);
-  const [Expand,setExpand] = useState(false);
+  const [Expand, setExpand] = useState(false);
 
   return (
     <div>
@@ -148,88 +146,88 @@ export default function Dashboard() {
             <div className="section" style={{ cursor: "pointer" }} onClick={() => { setExpand(!Expand) }}>
               <h4><AiFillThunderbolt /> Live Metrics</h4>
               <Collapse isOpened={Expand} theme={{ collapse: "react-collapse", content: "react-collapse-content" }}>
-              {pc.stats ? (
-                <>
-                  <RAMStackedBar
-                    used={pc.stats.memory.used}
-                    free={pc.stats.memory.free}
-                    total={pc.staticInfo.memory.total}
-                  />
-                  <div className="Ram_info">
-                    <p><b>RAM Used:</b> {gb(pc.stats.memory.used)}</p>
-                    <p><b>RAM Free:</b> {gb(pc.stats.memory.free)}</p>
-                    <p><b>Total RAM:</b> {pc.staticInfo.memory.total}</p>
-                  </div>
-
-                  <Cpuload
-                    label="CPU Load"
-                    value={pc.stats.cpu.load}
-                    color={cpuColor}
-                  />
-                  <p className="Ram_info"><b>CPU Load: {pc.stats.cpu.load} %</b></p>
-
-                  <hr></hr>
-                  <h4><FaWifi /> Network</h4>
-                  <p><b>IP:</b> {pc.stats.network.ip || "N/A"}</p>
-                  <p><b>MAC:</b> {pc.stats.network.mac || "N/A"}</p>
-                  <p><b>iface: </b>{pc.stats.network.iface || "N/A"}</p>
-
-                  <p><b>Network check: </b></p>
-                  <p>Evaluate your network speed and check for network issues to ensure your pc can smoothly access the internet</p>
-                  <div className="Network_stats">
-                    <div className="network_left" style={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
-                      <p>Upload: {pc.stats.network.Upload}<FaArrowUp style={{ color: "red" }} /> Kb/sec </p>
-                      <p>Download:{pc.stats.network.download} <FaArrowDown style={{ color: "blue" }} />Kb/sec</p>
-
+                {pc.stats ? (
+                  <>
+                    <RAMStackedBar
+                      used={pc.stats.memory.used}
+                      free={pc.stats.memory.free}
+                      total={pc.staticInfo.memory.total}
+                    />
+                    <div className="Ram_info">
+                      <p><b>RAM Used:</b> {gb(pc.stats.memory.used)}</p>
+                      <p><b>RAM Free:</b> {gb(pc.stats.memory.free)}</p>
+                      <p><b>Total RAM:</b> {pc.staticInfo.memory.total}</p>
                     </div>
-                    <div className="network_right">
-                      <Netlog
-                        upload={pc.stats.network.Upload}
-                        download={pc.stats.network.download}
-                      /></div>
-                  </div>
-                  {/* <p><b>upload: </b>{pc.stats.network.Upload}kb/sec</p>
+
+                    <Cpuload
+                      label="CPU Load"
+                      value={pc.stats.cpu.load}
+                      color={cpuColor}
+                    />
+                    <p className="Ram_info"><b>CPU Load: {pc.stats.cpu.load} %</b></p>
+
+                    <hr></hr>
+                    <h4><FaWifi /> Network</h4>
+                    <p><b>IP:</b> {pc.stats.network.ip || "N/A"}</p>
+                    <p><b>MAC:</b> {pc.stats.network.mac || "N/A"}</p>
+                    <p><b>iface: </b>{pc.stats.network.iface || "N/A"}</p>
+
+                    <p><b>Network check: </b></p>
+                    <p>Evaluate your network speed and check for network issues to ensure your pc can smoothly access the internet</p>
+                    <div className="Network_stats">
+                      <div className="network_left" style={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
+                        <p>Upload: {pc.stats.network.Upload}<FaArrowUp style={{ color: "red" }} /> Kb/sec </p>
+                        <p>Download:{pc.stats.network.download} <FaArrowDown style={{ color: "blue" }} />Kb/sec</p>
+
+                      </div>
+                      <div className="network_right">
+                        <Netlog
+                          upload={pc.stats.network.Upload}
+                          download={pc.stats.network.download}
+                        /></div>
+                    </div>
+                    {/* <p><b>upload: </b>{pc.stats.network.Upload}kb/sec</p>
                   <p><b>download: </b>{pc.stats.network.download}kb/sec</p> */}
 
-                  <hr></hr>
-                  <h4><SiGooglecloudstorage /> Storage</h4>
-                  {pc.stats.disks?.length ? (
-                    <div style={{ display: "flex", justifyContent: "space-evenly", flexWrap: "wrap" }}>
-                      {pc.stats.disks.map((disk, i) => (
-                        <DiskDonut key={i} disk={disk} />
-                      ))}
-                    </div>
-                    /* <table className="disk-table">
-                      <thead>
-                        <tr>
-                          <th>Type</th>
-                          <th>Mount</th>
-                          <th>Total</th>
-                          <th>Used</th>
-                          <th>Free</th>
-                          <th>Usage</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pc.stats.disks.map((d, i) => (
-                          <tr key={i}>
-                            <td>{d.type}</td>
-                            <td>{d.mount}</td>
-                            <td>{d.size}</td>
-                            <td>{d.used}</td>
-                            <td>{d.available}</td>
-                            <td>{d.usage}</td>
-                          </tr>
+                    <hr></hr>
+                    <h4><SiGooglecloudstorage /> Storage</h4>
+                    {pc.stats.disks?.length ? (
+                      <div style={{ display: "flex", justifyContent: "space-evenly", flexWrap: "wrap" }}>
+                        {pc.stats.disks.map((disk, i) => (
+                          <DiskDonut key={i} disk={disk} />
                         ))}
-                      </tbody>
-                    </table> */
-                  ) : (
-                    <p><MdError /> No disk data</p>
-                  )}
-                </>
-              ) : (
-                <p><MdError /> No live data yet</p>
-              )}
+                      </div>
+                      /* <table className="disk-table">
+                        <thead>
+                          <tr>
+                            <th>Type</th>
+                            <th>Mount</th>
+                            <th>Total</th>
+                            <th>Used</th>
+                            <th>Free</th>
+                            <th>Usage</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pc.stats.disks.map((d, i) => (
+                            <tr key={i}>
+                              <td>{d.type}</td>
+                              <td>{d.mount}</td>
+                              <td>{d.size}</td>
+                              <td>{d.used}</td>
+                              <td>{d.available}</td>
+                              <td>{d.usage}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table> */
+                    ) : (
+                      <p><MdError /> No disk data</p>
+                    )}
+                  </>
+                ) : (
+                  <p><MdError /> No live data yet</p>
+                )}
               </Collapse>
             </div>
           </div>
