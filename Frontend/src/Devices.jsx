@@ -15,7 +15,6 @@ export default function Devices({ ws }) {
             const data = JSON.parse(e.data);
 
             if (data.type === "COUNTS_UPDATE") {
-                // ✅ async event → SAFE
                 setTotal(data.payload.totalDevices);
                 setOnline(data.payload.onlineDevices);
                 setOffline(data.payload.offlineDevices);
